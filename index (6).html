@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>相場チェッカー | せどり仕入れ判定</title>
+<meta name="theme-color" content="#C9243F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="相場チェッカー">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F6F3EC;      /* レシート紙 */
+  --card:#FFFEFA;
+  --ink:#211F1A;        /* 墨 */
+  --sub:#6E6A5E;
+  --line:#DAD5C8;       /* 罫線 */
+  --red:#C9243F;        /* 赤札 */
+  --red-soft:#FBEAEC;
+  --ok:#2E7D4F;
+  --mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Zen Kaku Gothic New',system-ui,sans-serif;
+  background:var(--paper);
+  color:var(--ink);
+  line-height:1.6;
+  padding-bottom:64px;
+}
+/* 上端の赤札帯:値札の紐のイメージ */
+.topband{height:6px;background:repeating-linear-gradient(90deg,var(--red) 0 24px,var(--ink) 24px 26px)}
+header{padding:20px 18px 10px;max-width:560px;margin:0 auto}
+header h1{font-weight:900;font-size:22px;letter-spacing:.04em}
+header h1 .tag{display:inline-block;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:1px 8px;border-radius:2px;vertical-align:middle;margin-left:8px;letter-spacing:.12em}
+header p{font-size:12px;color:var(--sub)}
+main{max-width:560px;margin:0 auto;padding:0 14px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:14px}
+.sec-label{font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--sub);margin-bottom:10px}
+.sec-label::before{content:"■";color:var(--red);margin-right:6px;font-size:9px;vertical-align:1px}
+
+/* 検索 */
+.search-row{display:flex;gap:8px}
+input[type=text],input[type=number],select,textarea{
+  font-family:inherit;font-size:16px;color:var(--ink);
+  background:#fff;border:1.5px solid var(--line);border-radius:8px;
+  padding:10px 12px;width:100%;
+}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:3px solid rgba(201,36,63,.35);outline-offset:1px}
+input[type=number]{font-family:var(--mono);font-weight:500}
+.launchers{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px}
+.launch-btn{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  font-family:inherit;font-size:13px;font-weight:700;color:var(--ink);
+  background:#fff;border:1.5px solid var(--ink);border-radius:8px;
+  padding:12px 4px;cursor:pointer;text-decoration:none;
+  box-shadow:2px 2px 0 var(--ink);transition:transform .08s,box-shadow .08s;
+}
+.launch-btn small{font-size:10px;font-weight:400;color:var(--sub)}
+.launch-btn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink)}
+.launch-btn:disabled{opacity:.35;box-shadow:none;cursor:not-allowed}
+.hint{font-size:11px;color:var(--sub);margin-top:10px}
+
+/* 相場メモ */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--sub);margin-bottom:3px}
+.field .unit{font-size:11px;color:var(--sub)}
+.memo-actions{margin-top:12px}
+.btn{
+  font-family:inherit;font-size:14px;font-weight:700;
+  border:none;border-radius:8px;padding:12px 16px;cursor:pointer;width:100%;
+}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:active{opacity:.8}
+.history-empty{font-size:12px;color:var(--sub);border-top:1px dashed var(--line);padding-top:10px}
+
+/* 利益計算 */
+.fee-row{display:flex;gap:8px;margin-top:10px}
+.fee-pill{flex:1;position:relative}
+.fee-pill input{position:absolute;opacity:0;pointer-events:none}
+.fee-pill span{
+  display:block;text-align:center;font-size:13px;font-weight:700;
+  border:1.5px solid var(--line);border-radius:8px;padding:9px 4px;background:#fff;cursor:pointer;
+}
+.fee-pill input:checked + span{border-color:var(--red);background:var(--red-soft);color:var(--red)}
+.fee-pill input:focus-visible + span{outline:3px solid rgba(201,36,63,.35)}
+
+/* 判定値札(シグネチャ) */
+.pricetag{
+  position:relative;margin-top:16px;background:#fff;
+  border:1.5px solid var(--ink);border-radius:4px;
+  padding:18px 16px 16px 44px;
+  box-shadow:3px 3px 0 rgba(33,31,26,.15);
+  display:none;
+}
+.pricetag.show{display:block;animation:drop .25s ease-out}
+@keyframes drop{from{transform:translateY(-6px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.pricetag.show{animation:none}}
+.pricetag::before{ /* 値札の穴 */
+  content:"";position:absolute;left:14px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;border-radius:50%;
+  background:var(--paper);border:1.5px solid var(--ink);
+}
+.tag-rows{display:grid;gap:4px;font-size:13px}
+.tag-rows .row{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);padding-bottom:3px}
+.tag-rows .row b{font-family:var(--mono);font-weight:700}
+.tag-rows .row.profit b{font-size:20px}
+.tag-rows .row.profit.plus b{color:var(--ok)}
+.tag-rows .row.profit.minus b{color:var(--red)}
+.stamp{ /* ハンコ風ランク */
+  position:absolute;right:14px;top:-14px;width:64px;height:64px;border-radius:50%;
+  border:3px double var(--red);color:var(--red);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-weight:900;background:rgba(255,255,255,.85);
+  transform:rotate(-8deg);
+}
+.stamp .r{font-size:26px;line-height:1;font-family:var(--mono)}
+.stamp .t{font-size:9px;letter-spacing:.1em}
+.stamp.rank-E,.stamp.rank-D{border-color:var(--sub);color:var(--sub)}
+.verdict{margin-top:10px;font-size:12px;font-weight:700}
+.verdict.plus{color:var(--ok)}.verdict.minus{color:var(--red)}
+
+/* 保存済みリスト */
+.saved-item{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  border-top:1px dashed var(--line);padding:10px 2px;
+}
+.saved-item button.load{
+  background:none;border:none;font-family:inherit;font-size:14px;font-weight:700;
+  color:var(--ink);text-align:left;cursor:pointer;flex:1;padding:0;
+  text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;
+}
+.saved-item .meta{font-size:11px;color:var(--sub);font-family:var(--mono);white-space:nowrap}
+.saved-item button.del{background:none;border:none;color:var(--sub);font-size:16px;cursor:pointer;padding:4px}
+footer{max-width:560px;margin:18px auto 0;padding:0 18px;font-size:10px;color:var(--sub)}
+</style>
+</head>
+<body>
+<div class="topband"></div>
+<header>
+  <h1>相場チェッカー<span class="tag">仕入判定</span></h1>
+  <p>相場を検索 → 利益とランクを即判定</p>
+</header>
+<main>
+
+  <!-- STEP1 検索ランチャー -->
+  <section>
+    <div class="sec-label">STEP 1 相場を検索</div>
+    <div class="search-row">
+      <input type="text" id="q" placeholder="商品名・型番(例:Switch 有機EL)" autocomplete="off">
+    </div>
+    <div class="launchers">
+      <button class="launch-btn" id="b-yahoo">ヤフオク<small>落札相場</small></button>
+      <button class="launch-btn" id="b-mercari">メルカリ<small>売り切れ</small></button>
+      <button class="launch-btn" id="b-aucfan">オークファン<small>横断検索</small></button>
+    </div>
+    <p class="hint">ボタンで各サイトの過去相場ページが新しいタブで開きます。確認した相場をSTEP 2の想定売価に入れてください。</p>
+  </section>
+
+  <!-- STEP2 利益計算 -->
+  <section>
+    <div class="sec-label">STEP 2 利益計算・仕入判定</div>
+    <div class="grid2">
+      <div class="field"><label for="sell">想定売価 <span class="unit">円</span></label><input type="number" id="sell" inputmode="numeric" placeholder="平均相場を入れる"></div>
+      <div class="field"><label for="cost">仕入れ値 <span class="unit">円</span></label><input type="number" id="cost" inputmode="numeric" placeholder="店頭価格"></div>
+    </div>
+    <div class="fee-row" role="radiogroup" aria-label="販売先">
+      <label class="fee-pill"><input type="radio" name="fee" value="0.10" checked><span>メルカリ 10%</span></label>
+      <label class="fee-pill"><input type="radio" name="fee" value="0.10y"><span>ヤフオク 10%</span></label>
+    </div>
+    <div class="grid2" style="margin-top:10px">
+      <div class="field">
+        <label for="carrier">配送会社</label>
+        <select id="carrier"></select>
+      </div>
+      <div class="field">
+        <label for="size">サイズ(送料目安)</label>
+        <select id="size"></select>
+      </div>
+    </div>
+    <div class="memo-actions"><button class="btn btn-ink" id="judge">判定する</button></div>
+
+    <div class="pricetag" id="tag">
+      <div class="stamp" id="stamp"><span class="r">-</span><span class="t">RANK</span></div>
+      <div class="tag-rows">
+        <div class="row"><span>想定売価</span><b id="r-sell">-</b></div>
+        <div class="row"><span>販売手数料</span><b id="r-fee">-</b></div>
+        <div class="row"><span>送料</span><b id="r-ship">-</b></div>
+        <div class="row"><span>仕入れ値</span><b id="r-cost">-</b></div>
+        <div class="row profit"><span>利益(利益率)</span><b id="r-profit">-</b></div>
+      </div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+  </section>
+
+  <!-- 保存済みリスト -->
+  <section>
+    <div class="sec-label">保存済みの商品(タップで呼び出し)</div>
+    <div id="saved"></div>
+  </section>
+
+</main>
+<footer>送料・手数料は目安です(コード内 SHIPPING / 判定基準は RANKS で編集できます)。データはこの端末のブラウザ内(localStorage)にのみ保存されます。</footer>
+
+<script>
+'use strict';
+/* ============ 設定(自由に編集OK) ============ */
+const SHIPPING = {
+  yamato: { label:'ヤマト運輸', options:[
+    ['ネコポス(小型・薄型)',210],['宅急便コンパクト',520],['宅急便 60サイズ',750],
+    ['宅急便 80サイズ',850],['宅急便 100サイズ',1050],['宅急便 120サイズ',1200],
+    ['宅急便 140サイズ',1450],['宅急便 160サイズ',1700]
+  ]},
+  jpost: { label:'日本郵便', options:[
+    ['ゆうパケット',230],['ゆうパケットポスト',215],['ゆうパケットプラス',455],
+    ['ゆうパック 60サイズ',770],['ゆうパック 80サイズ',870],['ゆうパック 100サイズ',1070]
+  ]},
+  sagawa: { label:'佐川急便', options:[
+    ['飛脚宅配便 60サイズ',910],['飛脚宅配便 80サイズ',1200],['飛脚宅配便 100サイズ',1440],
+    ['飛脚宅配便 140サイズ',2000],['飛脚宅配便 160サイズ',2310]
+  ]}
+};
+/* ランク判定:上から順に判定 [利益率%, 利益額, ランク, コメント] */
+const RANKS = [
+  [40, 3000, 'S', '即仕入れ。全部買い占めレベル'],
+  [30, 1500, 'A', '仕入れ推奨。回転が良ければ迷わず'],
+  [20,  800, 'B', '仕入れOK。件数が出ていれば◎'],
+  [15,  500, 'C', '薄利。回転が速い商品なら可'],
+  [10,    0, 'D', '見送り推奨。値下げ競争で赤字リスク'],
+];
+const LS_KEY = 'sedori_souba_v1';
+
+/* ============ ユーティリティ ============ */
+const $ = id => document.getElementById(id);
+const yen = n => '¥' + Math.round(n).toLocaleString('ja-JP');
+const num = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : null; };
+const load = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {items:{}}; } catch(e){ return {items:{}}; } };
+const store = d => localStorage.setItem(LS_KEY, JSON.stringify(d));
+const keyOf = () => $('q').value.trim();
+const escapeHtml = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ============ STEP1 検索ランチャー ============ */
+function openSite(build){
+  const q = keyOf();
+  if(!q){ $('q').focus(); return; }
+  window.open(build(encodeURIComponent(q)), '_blank', 'noopener');
+}
+$('b-yahoo').onclick   = () => openSite(q => `https://auctions.yahoo.co.jp/closedsearch/closedsearch/${q}/0/`);
+$('b-mercari').onclick = () => openSite(q => `https://jp.mercari.com/search?keyword=${q}&status=sold&sort=created_time&order=desc`);
+$('b-aucfan').onclick  = () => openSite(q => `https://aucfan.com/search1/q-${q}/`);
+
+/* ============ STEP2 利益計算 ============ */
+function initShipping(){
+  const c = $('carrier');
+  c.innerHTML = Object.entries(SHIPPING).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('');
+  c.onchange = fillSizes;
+  fillSizes();
+}
+function fillSizes(){
+  const opts = SHIPPING[$('carrier').value].options;
+  $('size').innerHTML = opts.map((o,i) => `<option value="${i}">${o[0]} ${yen(o[1])}</option>`).join('');
+}
+initShipping();
+
+$('judge').onclick = () => {
+  const sell = num('sell'), cost = num('cost');
+  if(sell === null || cost === null){ alert('想定売価と仕入れ値を入力してください'); return; }
+  const feeRate = 0.10; // メルカリ/ヤフオクとも10%目安
+  const fee  = sell * feeRate;
+  const ship = SHIPPING[$('carrier').value].options[$('size').value][1];
+  const profit = sell - fee - ship - cost;
+  const margin = sell > 0 ? (profit / sell) * 100 : 0;
+
+  let rank = 'E', comment = '見送り。利益が出ません';
+  for(const [m, p, r, c] of RANKS){
+    if(margin >= m && profit >= p){ rank = r; comment = c; break; }
+  }
+  $('r-sell').textContent = yen(sell);
+  $('r-fee').textContent  = '-' + yen(fee).slice(1) + `(10%)`;
+  $('r-ship').textContent = '-' + yen(ship).slice(1);
+  $('r-cost').textContent = '-' + yen(cost).slice(1);
+  const pr = $('r-profit');
+  pr.textContent = `${yen(profit)}(${margin.toFixed(1)}%)`;
+  pr.parentElement.classList.toggle('plus', profit >= 0);
+  pr.parentElement.classList.toggle('minus', profit < 0);
+  const st = $('stamp');
+  st.className = 'stamp rank-' + rank;
+  st.querySelector('.r').textContent = rank;
+  const v = $('verdict');
+  v.textContent = comment;
+  v.className = 'verdict ' + (profit >= 0 && ['S','A','B','C'].includes(rank) ? 'plus' : 'minus');
+  $('tag').classList.add('show');
+
+  /* 判定結果も商品に紐づけて保存 */
+  const name = keyOf();
+  if(name){
+    const d = load();
+    d.items[name] = d.items[name] || {};
+    d.items[name].lastJudge = { date:new Date().toISOString().slice(0,10), sell, cost, ship, profit:Math.round(profit), margin:+margin.toFixed(1), rank };
+    store(d);
+    renderSaved();
+  }
+};
+
+/* ============ 保存済みリスト ============ */
+function renderSaved(){
+  const d = load();
+  const names = Object.keys(d.items);
+  const box = $('saved');
+  if(!names.length){ box.innerHTML = '<p class="history-empty">保存済みの商品はまだありません。</p>'; return; }
+  box.innerHTML = names.map(n => {
+    const it = d.items[n];
+    const j = it.lastJudge;
+    const meta = j ? `${j.rank} / ${yen(j.profit)}` : '';
+    return `<div class="saved-item">
+      <button class="load" data-n="${escapeHtml(n)}">${escapeHtml(n)}</button>
+      <span class="meta">${meta}</span>
+      <button class="del" data-n="${escapeHtml(n)}" aria-label="${escapeHtml(n)}を削除">✕</button>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.load').forEach(b => b.onclick = () => {
+    $('q').value = b.dataset.n;
+    const j = load().items[b.dataset.n].lastJudge;
+    if(j){ $('sell').value = j.sell; $('cost').value = j.cost; }
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+  box.querySelectorAll('.del').forEach(b => b.onclick = () => {
+    if(!confirm(`「${b.dataset.n}」を削除しますか?`)) return;
+    const d2 = load(); delete d2.items[b.dataset.n]; store(d2);
+    renderSaved();
+  });
+}
+renderSaved();
+</script>
+</body>
+</html>
